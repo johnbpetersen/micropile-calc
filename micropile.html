@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Micropile Design Calculator - FOR VIGS</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { margin-bottom: 10px; }
+    h2 { margin-top: 20px; }
+    label { display: block; margin: 5px 0; }
+    input, select { width: 200px; padding: 4px; }
+    .section { border: 1px solid #ccc; padding: 15px; border-radius: 6px; margin-bottom: 20px; }
+    #results { margin-top: 20px; padding: 15px; border: 1px solid #333; border-radius: 6px; }
+    .result-group { margin-bottom: 10px; }
+    .pass { color: green; font-weight: bold; }
+    .fail { color: red; font-weight: bold; }
+    .note { font-size: 0.9em; color: #555; margin-top: -10px; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Micropile Design Calculator</h1>
+
+  <div class="section">
+    <h2>Project Info</h2>
+    <label>Project Name: <input type="text" id="projectName" value="Test Project"></label>
+    <label>Location: <input type="text" id="location" value="New York"></label>
+    <label>Engineer: <input type="text" id="engineer" value="John Doe"></label>
+    <label>Date: <input type="date" id="projectDate" value="2025-04-09"></label>
+  </div>
+
+  <div class="section">
+    <h2>Micropile Properties</h2>
+    <label>Casing Diameter (mm): <input type="number" id="casingDia" min="50" max="500" value="150"></label>
+    <label>Casing Thickness (mm): <input type="number" id="casingThk" min="5" max="50" value="10"></label>
+    <label>Casing Length (mm): <input type="number" id="casingLen" min="1000" max="50000" value="10000"></label>
+    <div class="note">Casing length used in geotechnical tip capacity and skin friction</div>
+    <label>Reinforcement Type:
+      <select id="reinfType">
+        <option>Central Bar</option>
+        <option>Multiple Bars</option>
+      </select>
+    </label>
+    <label>Reinforcement Diameter (mm): <input type="number" id="reinfDia" min="10" max="100" value="25"></label>
+    <div class="note">If "Multiple Bars" is selected, uses 3 bars by default</div>
+    <label>Grout Strength (MPa): <input type="number" id="groutStr" min="10" max="100" value="30"></label>
+    <label>Bond Zone Diameter (mm): <input type="number" id="bondDia" min="50" max="500" value="200"></label>
+    <label>Bond Zone Length (m): <input type="number" id="bondLen" min="1" max="50" step="0.1" value="10"></label>
+  </div>
+
+  <div class="section">
+    <h2>Soil / Rock Properties</h2>
+    <label>Soil / Rock Type:
+      <select id="soilType">
+        <option>Sand</option>
+        <option>Clay</option>
+        <option>Silt</option>
+        <option>Soil</option>
+        <option>Rock</option>
+      </select>
+    </label>
+    <label>Unit Grout/Ground Bond Strength (kPa): <input type="number" id="bondStr" min="10" max="500" value="100"></label>
+    <label>Friction Angle (°): <input type="number" id="fricAng" min="0" max="90" value="30"></label>
+    <label>Cohesion (kPa): <input type="number" id="cohesion" min="0" max="500" value="0"></label>
+    <div class="note">Friction angle and cohesion used in advanced geotechnical model</div>
+  </div>
+
+  <div class="section">
+    <h2>Loading Conditions</h2>
+    <label>Axial Compression Load (kN): <input type="number" id="axComp" min="0" max="5000" value="500"></label>
+    <label>Axial Tension Load (kN): <input type="number" id="axTens" min="0" max="5000" value="300"></label>
+    <label>Lateral Load (kN): <input type="number" id="latLoad" min="0" max="1000" value="50"></label>
+    <label>Safety Factor: <input type="number" id="sf" min="1" max="5" step="0.1" value="2"></label>
+  </div>
+
+  <button onclick="calculate()">Calculate</button>
+
+  <div id="results" style="display:none;">
+    <h2>Results</h2>
+    <div class="result-group">
+      <strong>Structural Capacity (Nominal):</strong>
+      <div>Compression: <span id="structComp"></span> kN</div>
+      <div>Tension: <span id="structTens"></span> kN</div>
+    </div>
+    <div class="result-group">
+      <strong>Geotechnical Capacity (Nominal):</strong>
+      <div>Skin Friction: <span id="geoSkin"></span> kN</div>
+      <div>Tip Bearing: <span id="geoTip"></span> kN</div>
+      <div>Total Geotech: <span id="geoComp"></span> kN</div>
+    </div>
+    <div class="result-group">
+      <strong>Allowable Capacity (Nominal / SF):</strong>
+      <div>Structural Compression: <span id="allowStructComp"></span> kN</div>
+      <div>Structural Tension: <span id="allowStructTens"></span> kN</div>
+      <div>Geotech Compression: <span id="allowGeoComp"></span> kN</div>
+      <div>Geotech Tension: <span id="allowGeoTens"></span> kN</div>
+    </div>
+    <div class="result-group">
+      <strong>Controlling Allowable Capacity:</strong>
+      <div>Compression: <span id="ctrlComp"></span> kN</div>
+      <div>Tension: <span id="ctrlTens"></span> kN</div>
+    </div>
+    <div class="result-group">
+      <strong>Status (Allowable ≥ Load):</strong>
+      <div>Compression: <span id="statusComp"></span></div>
+      <div>Tension: <span id="statusTens"></span></div>
+    </div>
+  </div>
+
+  <script>
+    function calculate() {
+      // Inputs
+      const D = parseFloat(document.getElementById('casingDia').value);
+      const t = parseFloat(document.getElementById('casingThk').value);
+      const casingLen = parseFloat(document.getElementById('casingLen').value);
+      const d_bar = parseFloat(document.getElementById('reinfDia').value);
+      const fcd = parseFloat(document.getElementById('groutStr').value);
+      const Dbond = parseFloat(document.getElementById('bondDia').value);
+      const Lbond = parseFloat(document.getElementById('bondLen').value);
+      const qs = parseFloat(document.getElementById('bondStr').value);
+      const fricAng = parseFloat(document.getElementById('fricAng').value);
+      const cohesionVal = parseFloat(document.getElementById('cohesion').value);
+      const axComp = parseFloat(document.getElementById('axComp').value);
+      const axTens = parseFloat(document.getElementById('axTens').value);
+      const sf = parseFloat(document.getElementById('sf').value);
+      const reinfType = document.getElementById('reinfType').value;
+
+      // Area calculations (mm²)
+      const A_casing = Math.PI/4 * (D*D - Math.pow(D - 2*t, 2));
+      const A_bar_single = Math.PI/4 * (d_bar*d_bar);
+      const numBars = reinfType === 'Multiple Bars' ? 3 : 1;
+      const A_reinf = numBars * A_bar_single;
+      const A_steel = A_casing + A_reinf;
+      const A_overall = Math.PI/4 * (D*D);
+      const A_grout = A_overall - A_steel;
+
+      // Structural nominal capacities (kN)
+      const fy = 500; // assumed MPa
+      const P_struc_comp = (0.47 * A_steel * fy + 0.40 * A_grout * fcd) / 1000;
+      const P_struc_tens = (A_steel * fy) / 1000;
+
+      // Advanced geotechnical capacities
+      const D_m = Dbond / 1000;
+      const casingLen_m = casingLen / 1000;
+      const phi_rad = fricAng * Math.PI/180;
+      const gamma_soil = 18; // kN/m³
+
+      // Skin friction (kN)
+      const perimeter = Math.PI * D_m;
+      const sigma_v = gamma_soil * casingLen_m;
+      const tau = cohesionVal + sigma_v * Math.tan(phi_rad); // kPa
+      const P_geo_skin = tau * perimeter * Lbond;
+
+      // Tip bearing (kN) using Terzaghi's factors
+      const Nq = Math.exp(Math.PI * Math.tan(phi_rad)) *
+                 Math.pow(Math.tan(Math.PI/4 + phi_rad/2), 2);
+      const Nc = (Nq - 1) / Math.tan(phi_rad);
+      const Ngamma = 2 * (Nq + 1) * Math.tan(phi_rad);
+      const q = gamma_soil * casingLen_m;
+      const B = D_m;
+      const q_tip = cohesionVal * Nc + q * Nq + 0.5 * gamma_soil * B * Ngamma; // kPa
+      const A_tip = Math.PI * Math.pow(D_m, 2) / 4;
+      const P_geo_tip = q_tip * A_tip;
+
+      const P_geo_comp = P_geo_skin + P_geo_tip;
+      const P_geo_tens = P_geo_skin;
+
+      // Allowable capacities
+      const allowStructComp = P_struc_comp / sf;
+      const allowStructTens = P_struc_tens / sf;
+      const allowGeoComp    = P_geo_comp    / sf;
+      const allowGeoTens    = P_geo_tens    / sf;
+
+      // Controlling allowable capacity
+      const ctrlComp = Math.min(allowStructComp, allowGeoComp);
+      const ctrlTens = Math.min(allowStructTens, allowGeoTens);
+
+      // Status check
+      const statusComp = ctrlComp >= axComp ? '<span class="pass">Pass</span>' : '<span class="fail">Fail</span>';
+      const statusTens = ctrlTens >= axTens ? '<span class="pass">Pass</span>' : '<span class="fail">Fail</span>';
+
+      // Display results
+      document.getElementById('structComp').innerText      = P_struc_comp.toFixed(2);
+      document.getElementById('structTens').innerText      = P_struc_tens.toFixed(2);
+      document.getElementById('geoSkin').innerText         = P_geo_skin.toFixed(2);
+      document.getElementById('geoTip').innerText          = P_geo_tip.toFixed(2);
+      document.getElementById('geoComp').innerText         = P_geo_comp.toFixed(2);
+      document.getElementById('allowStructComp').innerText = allowStructComp.toFixed(2);
+      document.getElementById('allowStructTens').innerText = allowStructTens.toFixed(2);
+      document.getElementById('allowGeoComp').innerText    = allowGeoComp.toFixed(2);
+      document.getElementById('allowGeoTens').innerText    = allowGeoTens.toFixed(2);
+      document.getElementById('ctrlComp').innerText        = ctrlComp.toFixed(2);
+      document.getElementById('ctrlTens').innerText        = ctrlTens.toFixed(2);
+      document.getElementById('statusComp').innerHTML      = statusComp;
+      document.getElementById('statusTens').innerHTML      = statusTens;
+      document.getElementById('results').style.display     = 'block';
+    }
+  </script>
+</body>
+</html>
